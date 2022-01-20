@@ -1,0 +1,48 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using Debug = UnityEngine.Debug;
+
+//[RequireComponent(typeof(Collider))]
+public class #SCRIPTNAME# : MonoBehaviour
+{
+    //[SerializeField] private Collider m_Collider;
+
+    private void SetReferences()
+    {
+        //if (m_Collider == null)
+        //    m_Collider = GetComponent<Collider>();
+        Validate();
+    }
+
+    [Conditional("UNITY_EDITOR")]
+    private void Validate()
+    {
+        //var hasTrigger = GetComponents<Collider>().Any(c => c.isTrigger);
+        //if (hasTrigger == false)
+        //{
+            //Debug.LogError($"Action trigger requests isTrigger == true collider on it. This one ({gameObject.name}) doesn't have it!", gameObject);
+        //}
+    }
+
+    private void Reset()
+    {
+        SetReferences();
+    }
+
+    private void Awake()
+    {
+        SetReferences();
+    }
+
+    void Start()
+    {
+        #NOTRIM#
+    }
+
+    void Update()
+    {
+        #NOTRIM#
+    }
+}
