@@ -45,6 +45,12 @@ namespace TransformAccessArrayDemo.Naive
         private ObjectPool<NaiveAgent> m_AgentPool;
         private GameObject m_AgentPoolRoot;
 
+        private bool m_ApplicationQuit;
+        private void OnApplicationQuit()
+        {
+            m_ApplicationQuit = true;
+        }
+
         Transform GetAgentPoolParent()
         {
             if (m_AgentPoolRoot == null)
@@ -78,8 +84,10 @@ namespace TransformAccessArrayDemo.Naive
 
         private void OnDisable()
         {
-            SyncCount(0);
-            //m_AgentPool.Clear();
+            if (m_ApplicationQuit == false)
+            {
+                SyncCount(0);
+            }
         }
 
         private void Update()

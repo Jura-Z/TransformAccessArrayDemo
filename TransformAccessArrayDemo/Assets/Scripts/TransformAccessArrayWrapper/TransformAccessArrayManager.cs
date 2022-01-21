@@ -109,6 +109,12 @@ namespace TransformAccessArrayDemo
         private GameObject m_DecalPoolRoot;
         private GameObject m_CasterPoolRoot;
 
+        private bool m_ApplicationQuit;
+        private void OnApplicationQuit()
+        {
+            m_ApplicationQuit = true;
+        }
+
         Transform GetDecalPoolParent()
         {
             if (m_DecalPoolRoot == null)
@@ -185,13 +191,14 @@ namespace TransformAccessArrayDemo
 
             m_UpdateDependency.Complete();
 
-            SyncCount(0);
+            if (m_ApplicationQuit == false)
+            {
+                SyncCount(0);
 
-            //m_CasterPool.Clear();
-            //m_DecalPool.Clear();
+                foreach (var go in m_Roots)
+                    Destroy(go);
+            }
 
-            foreach (var go in m_Roots)
-                Destroy(go);
             m_Roots.Clear();
 
             m_Casters.Dispose();
