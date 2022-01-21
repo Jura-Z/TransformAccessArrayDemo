@@ -1,10 +1,10 @@
 {
-    "name": "Demo",
+    "name": "DecalMovement",
     "rootNamespace": "",
     "references": [
         "GUID:6055be8ebefd69e48b49212b09b47b2f",
-        "NaiveDemo",
-        "TransformAccessArrayWrapper"
+        "GUID:a856d17d0c59065438d626f8e7783105",
+        "GUID:c8a823c40c11d9845b1c0f2317f94e0b"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

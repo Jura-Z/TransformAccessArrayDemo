@@ -20,7 +20,7 @@ namespace TransformAccessArrayDemo.Naive
         public int Count = 100;
 
         [SerializeField]
-        private List<NaiveAgent> m_SpawnedAgent = new List<NaiveAgent>(128);
+        private List<Transform> m_SpawnedAgent = new List<Transform>(128);
 
         private void SetReferences()
         {
@@ -42,7 +42,7 @@ namespace TransformAccessArrayDemo.Naive
             SetReferences();
         }
 
-        private ObjectPool<NaiveAgent> m_AgentPool;
+        private ObjectPool<Transform> m_AgentPool;
         private GameObject m_AgentPoolRoot;
 
         private bool m_ApplicationQuit;
@@ -62,15 +62,15 @@ namespace TransformAccessArrayDemo.Naive
         {
             SetReferences();
 
-            m_AgentPool = new ObjectPool<NaiveAgent>(() => Instantiate(m_NaiveAgentPrefab, GetAgentPoolParent()),
+            m_AgentPool = new ObjectPool<Transform>(() => Instantiate(m_NaiveAgentPrefab, GetAgentPoolParent()).transform,
                                                      actionOnGet: obj =>
                                                      {
                                                          obj.gameObject.SetActive(true);
-                                                         obj.transform.SetPositionAndRotation(RandomPositionInsideBounds(), Random.rotationUniform);
+                                                         obj.SetPositionAndRotation(RandomPositionInsideBounds(), Random.rotationUniform);
                                                      }, actionOnRelease: obj =>
                                                      {
                                                          obj.gameObject.SetActive(false);
-                                                         obj.transform.parent = GetAgentPoolParent();
+                                                         obj.parent = GetAgentPoolParent();
                                                      }, actionOnDestroy: obj =>
                                                      {
                                                          GameObject.Destroy(obj.gameObject);
@@ -107,7 +107,9 @@ namespace TransformAccessArrayDemo.Naive
                 var trans = transform;
                 for (var i = currentN; i < neededCount; ++i)
                 {
-                    var newAgent = Instantiate(m_NaiveAgentPrefab, RandomPositionInsideBounds(), Random.rotationUniform, trans);
+                    var newAgent = m_AgentPool.Get();
+                    newAgent.SetParent(trans);
+                    newAgent.SetPositionAndRotation(RandomPositionInsideBounds(), Random.rotationUniform);
                     m_SpawnedAgent.Add(newAgent);
                 }
             }
