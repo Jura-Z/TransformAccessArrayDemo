@@ -72,11 +72,17 @@ namespace TransformAccessArrayDemo
         private Transform m_DecalParent;
         private int m_DecalChild = int.MaxValue;
 
+        private static ProfilerMarker s_ProfilerMarkerWaitForJob = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(Update)}.WaitForJob");
         private static ProfilerMarker s_ProfilerMarkerSync = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(SyncCount)}");
         private static ProfilerMarker s_ProfilerMarkerSyncSpawn = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(SyncCount)}.Spawn");
         private static ProfilerMarker s_ProfilerMarkerSyncDespawn = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(SyncCount)}.Despawn");
         private static ProfilerMarker s_ProfilerMarkerSyncOnEnable = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(OnEnable)}");
         private static ProfilerMarker s_ProfilerMarkerSyncOnDisable = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(OnDisable)}");
+
+        private static ProfilerMarker s_ProfilerMarkerScheduleMoveAgentsJob = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(MoveAgentsJob)}.Schedule");
+        private static ProfilerMarker s_ProfilerMarkerScheduleCommandsCreationJob = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(CommandsCreationJob)}.Schedule");
+        private static ProfilerMarker s_ProfilerMarkerScheduleRaycastCommand = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(RaycastCommand)}.Schedule");
+        private static ProfilerMarker s_ProfilerMarkerScheduleSetPositionsJob = new ProfilerMarker(ProfilerCategory.Scripts, $"{nameof(TransformAccessArray)}.{nameof(SetPositionsJob)}.Schedule");
 
         private void SetReferences()
         {
@@ -212,7 +218,10 @@ namespace TransformAccessArrayDemo
 
         private void Update()
         {
-            m_UpdateDependency.Complete();
+            {
+                using var _ = s_ProfilerMarkerWaitForJob.Auto();
+                m_UpdateDependency.Complete();
+            }
 
             if (m_Casters.Length != Count)
             {
@@ -225,36 +234,49 @@ namespace TransformAccessArrayDemo
             // this will write to m_Casters.Position and m_Casters.Directions
             //dependency = m_Casters.ScheduleReadPositions(dependency);
 
-            dependency = m_Casters.ScheduleWritePositions(new MoveAgentsJob
+            using (var _ = s_ProfilerMarkerScheduleMoveAgentsJob.Auto())
             {
-                DeltaTime = Time.deltaTime,
-                Speed = Speed,
-                RotationSmoothing = RotationSmoothing,
-                ChangeRotationPeriod = ChangeRotationPeriod,
-                Seed = (uint)Time.frameCount,
-                m_TargetForwards = m_TargetForwards,
-                m_DelayRotationChangeCurrents = m_DelayRotationChangeCurrents,
-                Positions = m_Casters.Positions.AsArray(),
-                Directions = m_Casters.Directions.AsArray()
-            }, dependency);
+                dependency = m_Casters.ScheduleWritePositions(new MoveAgentsJob
+                {
+                    DeltaTime = Time.deltaTime,
+                    Speed = Speed,
+                    RotationSmoothing = RotationSmoothing,
+                    ChangeRotationPeriod = ChangeRotationPeriod,
+                    Seed = (uint)Time.frameCount,
+                    m_TargetForwards = m_TargetForwards,
+                    m_DelayRotationChangeCurrents = m_DelayRotationChangeCurrents,
+                    Positions = m_Casters.Positions.AsArray(),
+                    Directions = m_Casters.Directions.AsArray()
+                }, dependency);
+            }
 
-            dependency = new CommandsCreationJob
+            using (var _ = s_ProfilerMarkerScheduleCommandsCreationJob.Auto())
             {
-                Commands = m_Commands,
-                Positions = m_Casters.Positions.AsArray(),
-                LayerMask = m_LayerMask
-            }.Schedule(Count, 256, dependency);
+                dependency = new CommandsCreationJob
+                {
+                    Commands = m_Commands,
+                    Positions = m_Casters.Positions.AsArray(),
+                    LayerMask = m_LayerMask
+                }.Schedule(Count, 256, dependency);
+            }
 
-            dependency = RaycastCommand.ScheduleBatch(m_Commands.AsArray().GetSubArray(0, Count),
-                                                      m_Hits.AsArray(),
-                                                      1,
-                                                      dependency);
 
-            dependency = m_Decals.ScheduleWritePositions(new SetPositionsJob
+            using (var _ = s_ProfilerMarkerScheduleRaycastCommand.Auto())
             {
-                Hits = m_Hits,
-                Directions = m_Casters.Directions.AsArray()
-            }, dependency);
+                dependency = RaycastCommand.ScheduleBatch(m_Commands.AsArray().GetSubArray(0, Count),
+                                                          m_Hits.AsArray(),
+                                                          1,
+                                                          dependency);
+            }
+
+            using (var _ = s_ProfilerMarkerScheduleSetPositionsJob.Auto())
+            {
+                dependency = m_Decals.ScheduleWritePositions(new SetPositionsJob
+                {
+                    Hits = m_Hits,
+                    Directions = m_Casters.Directions.AsArray()
+                }, dependency);
+            }
 
             m_UpdateDependency = dependency;
         }
