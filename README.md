@@ -104,6 +104,8 @@ Now we almost cannot see the scheduler on the main thread. Total jobs completion
 
 That's for 20k objects!
 
+![Overview](Docs/Pictures/Difference.png)
+
 # More tech details about TransfromAccessArray
 
 TODO
