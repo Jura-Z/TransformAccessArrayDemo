@@ -57,7 +57,31 @@ Ok, let's try to make this even faster.
 
 ### TransformAccessArray + correctly organized hierarchy
 
-Before we were just creating Transforms in the root. But if we try to create transforms in a buckets of 256 then we can speed up jobs on such transforms, because this empty parent would speed up whole bucket.
+Hierarchy is critical for TransformAccessArray, because it controls how jobs can be scheduled.
+
+Before we were just creating Transforms in the root. But usually Unity users tend to 'organize' scenes. So let's try to create all agents under some parent GameObject that would hide them like this:
+
+```
+Scene
+  - Casters
+    - caster1
+    - caster2
+    - caster...
+    - caster342
+  - Decals
+    - decal1
+    - decal2
+    - decal...
+    - decal342
+```
+
+![TAA profiler's timeline. With Burst, worst possible hierarchy](Docs/Pictures/TAA-SingleParent-Burst.png)
+
+There is just one job that does all the work. The reason for that is connected to how TransformAccess is implemented - you can process children of the parent inside one job, so if you have one parent - you have one job max.
+Watch this: https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
+
+
+The ideal case is to have buckets of 256, like this:
 
 Before
 

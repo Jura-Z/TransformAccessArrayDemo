@@ -28,6 +28,8 @@ namespace TransformAccessArrayDemo
 
     public class TransformAccessArrayManager : MonoBehaviour
     {
+        private const int MaxCount = 30000;
+        
         [SerializeField]
         private Transform m_AgentPrefab;
 
@@ -46,7 +48,7 @@ namespace TransformAccessArrayDemo
         [Range(0.5f, 5.0f)]
         public float ChangeRotationPeriod = 2.0f;
 
-        [Range(0, 30000)]
+        [Range(0, MaxCount)]
         public int Count = 100;
 
         private TransformAccessArrayWrapper m_Casters;
@@ -61,10 +63,18 @@ namespace TransformAccessArrayDemo
         private NativeList<RaycastCommand> m_Commands;
         private JobHandle m_UpdateDependency;
 
+        public enum ParentType
+        {
+            Single,
+            Root,
+            Bucket
+        }
+        
         // When this field is true:
         //  TransformAccessArray objects are put in buckets of HierarchyBucketSize transform with an empty parent (faster)
         //  Just in the root otherwise (slower)
-        public bool UseHierarchySplit;
+        public ParentType ParentStrategyType;
+        
         [Range(32, 1024)]
         [SerializeField] private int HierarchyBucketSize = 256;
         private Transform m_CasterParent;
@@ -124,14 +134,22 @@ namespace TransformAccessArrayDemo
         Transform GetDecalPoolParent()
         {
             if (m_DecalPoolRoot == null)
+            {
                 m_DecalPoolRoot = new GameObject("DecalPoolRoot");
+                m_DecalPoolRoot.transform.hierarchyCapacity = MaxCount;
+            }
+
             return m_DecalPoolRoot.transform;
         }
 
         Transform GetCasterPoolParent()
         {
             if (m_CasterPoolRoot == null)
+            {
                 m_CasterPoolRoot = new GameObject("CasterPoolRoot");
+                m_CasterPoolRoot.transform.hierarchyCapacity = MaxCount;
+            }
+
             return m_CasterPoolRoot.transform;
         }
 
@@ -152,7 +170,7 @@ namespace TransformAccessArrayDemo
                                                     }, actionOnDestroy: obj =>
                                                     {
                                                         GameObject.Destroy(obj.gameObject);
-                                                    }, collectionCheck: false, defaultCapacity: 32, maxSize: 10000);
+                                                    }, collectionCheck: false, defaultCapacity: 32, maxSize: MaxCount);
 
             m_DecalPool = new ObjectPool<Transform>(() => Instantiate(m_DecalPrefab, GetDecalPoolParent()),
                                                     actionOnGet: obj =>
@@ -166,7 +184,7 @@ namespace TransformAccessArrayDemo
                                                     }, actionOnDestroy: obj =>
                                                     {
                                                         GameObject.Destroy(obj.gameObject);
-                                                    }, collectionCheck: false, defaultCapacity: 32, maxSize: 10000);
+                                                    }, collectionCheck: false, defaultCapacity: 32, maxSize: MaxCount);
         }
 
         private void OnEnable()
@@ -341,32 +359,45 @@ namespace TransformAccessArrayDemo
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Transform GetCasterParent()
         {
-            if (UseHierarchySplit == false)
-                return null;
+            if (ParentStrategyType == ParentType.Root) return null;
+            var needToCreateNewParent = ParentStrategyType switch
+            {
+                ParentType.Single => m_CasterParent == null,
+                ParentType.Bucket => m_CasterChild >= HierarchyBucketSize,
+                _ => false
+            };
 
-            if (m_CasterChild >= HierarchyBucketSize)
+            if (needToCreateNewParent)
             {
                 var go = new GameObject("CasterParent");
                 m_Roots.Add(go);
                 m_CasterParent = go.transform;
                 m_CasterChild = 0;
+                m_CasterParent.hierarchyCapacity = HierarchyBucketSize;
             }
+
             ++m_CasterChild;
-            return m_CasterParent;
+            return m_CasterParent;        
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Transform GetDecalParent()
         {
-            if (UseHierarchySplit == false)
-                return null;
+            if (ParentStrategyType == ParentType.Root) return null;
+            var needToCreateNewParent = ParentStrategyType switch
+            {
+                ParentType.Single => m_DecalParent == null,
+                ParentType.Bucket => m_DecalChild >= HierarchyBucketSize,
+                _ => false
+            };
 
-            if (m_DecalChild >= HierarchyBucketSize)
+            if (needToCreateNewParent)
             {
                 var go = new GameObject("DecalParent");
                 m_Roots.Add(go);
                 m_DecalParent = go.transform;
                 m_DecalChild = 0;
+                m_DecalParent.hierarchyCapacity = HierarchyBucketSize;
             }
             ++m_DecalChild;
             return m_DecalParent;

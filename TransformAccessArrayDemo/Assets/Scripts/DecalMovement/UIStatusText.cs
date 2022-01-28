@@ -14,6 +14,7 @@ public class UIStatusText : MonoBehaviour
     {
         Naive,
         TransformAccessArrayWrongHierarchy,
+        TransformAccessArrayRootHierarchy,
         TransformAccessArrayCorrect
     }
 
@@ -137,8 +138,9 @@ public class UIStatusText : MonoBehaviour
         return m_Mode switch
         {
             DemoMode.Naive => "Naive",
-            DemoMode.TransformAccessArrayWrongHierarchy => "TransformAccessArray + Jobs + Burst + Wrong(!) Hierarchy",
-            DemoMode.TransformAccessArrayCorrect => "TransformAccessArray + Jobs + Burst + Optimal Hierarchy",
+            DemoMode.TransformAccessArrayWrongHierarchy => "TransformAccessArray + Jobs + Burst + Wrong(all in one) Hierarchy",
+            DemoMode.TransformAccessArrayRootHierarchy => "TransformAccessArray + Jobs + Burst + Better(all in root) Hierarchy",
+            DemoMode.TransformAccessArrayCorrect => "TransformAccessArray + Jobs + Burst + Optimal(buckets by 256) Hierarchy",
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -162,11 +164,22 @@ public class UIStatusText : MonoBehaviour
         }
         else
         {
-            m_TransformAccessArray.UseHierarchySplit = m_Mode == DemoMode.TransformAccessArrayCorrect;
+            m_TransformAccessArray.ParentStrategyType = ToStrategyType(m_Mode);
             m_TransformAccessArray.enabled = m_Enabled;
         }
 
         if (m_Enabled)
             Debug.Log($"Enabled in {sw.ElapsedMilliseconds} msec");
+    }
+
+    private TransformAccessArrayManager.ParentType ToStrategyType(DemoMode mode)
+    {
+        return mode switch
+        {
+            DemoMode.TransformAccessArrayWrongHierarchy => TransformAccessArrayManager.ParentType.Single,
+            DemoMode.TransformAccessArrayRootHierarchy => TransformAccessArrayManager.ParentType.Root,
+            DemoMode.TransformAccessArrayCorrect => TransformAccessArrayManager.ParentType.Bucket,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+        };
     }
 }
