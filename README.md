@@ -59,7 +59,13 @@ Ok, let's try to make this even faster.
 
 Hierarchy is critical for TransformAccessArray, because it controls how jobs can be scheduled.
 
-Before we were just creating Transforms in the root. But usually Unity users tend to 'organize' scenes. So let's try to create all agents under some parent GameObject that would hide them like this:
+To understand it better watch this: https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
+
+From the video you see that a hierarchy in the root is a special object called `TransformHierarchy`. Only one thread can process one `TransformHierarchy`. To demonstrate it, let's try the worst possible case that is actually an often case unfortunately.
+
+#### Wrong hierarchy: all under one parent GameObject
+
+If we create all agents under some parent GameObject like this:
 
 ```
 Scene
@@ -75,15 +81,15 @@ Scene
     - decal342
 ```
 
+We would kill all the performance.
+
 ![TAA profiler's timeline. With Burst, worst possible hierarchy](Docs/Pictures/TAA-SingleParent-Burst.png)
 
-There is just one job that does all the work. The reason for that is connected to how TransformAccess is implemented - you can process children of the parent inside one job, so if you have one parent - you have one job max.
-Watch this: https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
+There is just one job that does all the work, because there is only one `TransformHierarchy` per all casters and one per all decals.
 
+#### Better hierarchy: all in the root
 
-The ideal case is to have buckets of 256, like this:
-
-Before
+Currently we're creating all casters in the root, like:
 
 ```
 Scene
@@ -97,7 +103,18 @@ Scene
   - decal342
 ```
 
-Now
+![TAA profiler's timeline. With Burst](Docs/Pictures/TAA-Burst.png)
+
+As you can see we have a lot better picture, but still some time is spent on just scheduling. Why?
+
+To answer this I need to dig into Unity's source code. But since you don't have access to it, I try to explain it here:
+
+Basically for 40k objects in the root (20k casters, 20k decals) we have 40k `TransformHierarchy` that do some internal work, like for every `TransformHierarchy` that was used for scheduling a transform job (`IJobParallelForTransform`) - Unity engine marks them as 'potentially changed', by calling `DidScheduleTransformJob` and adding them to a special list, on main thread. That's not really expensive for few `TransformHierarchy`, but for 40k that's 2msec on my machine!
+
+#### Optimal hierarchy: root buckets of 256
+
+So, to improve the performance we need to reduce amount of `TransformHierarchy`-s. For instance by creating one `TransformHierarchy` per 256 objects, like:
+
 ```
 Scene
   - parentCaster1
@@ -122,11 +139,13 @@ Scene
     - decal342
 ```
 
+This reduces amount of `TransformHierarchy` from 40k to ~157 and we would reduce complexity of some internal algorithm that has O(`TransformHierarchy` count). Take a look: 
+
 ![TAA profiler's timeline. With Burst, with correct hierarchy](Docs/Pictures/TAA-CorrectHierarchy-Burst.png)
 
 Now we almost cannot see the scheduler on the main thread. Total jobs completion takes ~2.5 msec.
 
-That's for 20k objects!
+That's for 20k objects and 20k decals!
 
 ![Overview](Docs/Pictures/Difference.png)
 
