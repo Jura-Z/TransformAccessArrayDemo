@@ -1,5 +1,13 @@
 # TransformAccessArrayDemo
 
+What's the fastest way to move a lot of transforms in Unity? 
+
+Here we try to use a naive transform.SetPositionAndRotation + some raycasts to get a new position and that's around 23 msec to move 40k objects and cast 20k rays.
+
+And then we try to do the same (40k rotation/movement + 20k raycasts) in 0.120 msec in the main thread (2.5 msec on background jobs).
+
+![Overview](Docs/Pictures/Difference.png)
+
 ## DecalMovement
 
 This project demonstrates a few ways to implement moving 3d objects (casters) that project some decal (see [Decal Documentation in URP](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@12.0/manual/renderer-feature-decal.html))
@@ -23,13 +31,30 @@ This way we're not calling `Instantiate`/`Destroy`, but just disabling objects o
 
 23 msec to move 20k casters + decals… But is it possible to make it faster?
 
-### TransformAccessArray
+### TransformAccessArray - what's that?
 
-A much faster way of implementing this would be to use [jobs](https://unity.com/dots/packages#c-job-system) (multithreading) and [Burst](https://unity.com/dots/packages#burst-compiler) (special compiler for a C# subset).
+Each hierarchy in the root is a special object called `TransformHierarchy` that has an array of transforms in it. You even can control its capacity via [Transform.hierarchyCapacity](https://docs.unity3d.com/ScriptReference/Transform-hierarchyCapacity.html) - that doc also has a bit of technical details.
+
+`TransformAccess` defines single transform, basically `TransformHierarchy` pointer + index inside of it.
+
+And `TransformAccessArray` is an array of those `TransformAccess` objects that is ready to be processed in multithreaded way. 
+
+> ❗ Yes, that's right - **we can modify GameObject's Transforms via jobs**. And that's insanely fast!
+
+Hierarchy is critical - it controls how jobs can be scheduled.
+
+Also take a look at https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
+
+
+### Implementation
+
+So, how?
 
 Let's say we decouple 'agent' to 'caster' and 'decal'.
 The logic will be different in such case:
 [The manager](https://github.com/Jura-Z/TransformAccessArrayDemo/blob/main/TransformAccessArrayDemo/Assets/Scripts/DecalMovement/TransformAccessArrayWrapper/TransformAccessArrayManager.cs) would control a list of 'casters' and 'decals'.
+
+Also, we need to use [jobs](https://unity.com/dots/packages#c-job-system) (multithreading) and [Burst](https://unity.com/dots/packages#burst-compiler) (special compiler for a C# subset).
 
 For every Update of the manager it would spawn a chain of jobs that depend on each other:
 - it would [spawn a job](https://github.com/Jura-Z/TransformAccessArrayDemo/blob/main/TransformAccessArrayDemo/Assets/Scripts/DecalMovement/TransformAccessArrayWrapper/TransformAccessArrayManager.cs#L228) that changes the position of all casters.
@@ -57,11 +82,8 @@ Ok, let's try to make this even faster.
 
 ### TransformAccessArray + correctly organized hierarchy
 
-Hierarchy is critical for TransformAccessArray, because it controls how jobs can be scheduled.
-
-To understand it better watch this: https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
-
-From the video you see that a hierarchy in the root is a special object called `TransformHierarchy`. Only one thread can process one `TransformHierarchy`. To demonstrate it, let's try the worst possible case that is actually an often case unfortunately.
+As I said hierarchy is critical - because it controls how jobs can be scheduled.
+Only one thread can process one `TransformHierarchy`. To demonstrate it, let's try the worst possible case that is actually an often case unfortunately.
 
 #### Wrong hierarchy: all under one parent GameObject
 
@@ -148,10 +170,6 @@ Now we almost cannot see the scheduler on the main thread. Total jobs completion
 That's for 20k objects and 20k decals!
 
 ![Overview](Docs/Pictures/Difference.png)
-
-# More tech details about TransfromAccessArray
-
-TODO
 
 # Notes
 
