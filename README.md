@@ -2,7 +2,7 @@
 
 What's the fastest way to move a lot of transforms in Unity? 
 
-Here we try to use a naive transform.SetPositionAndRotation + some raycasts to get a new position and that's around 23 msec to move 40k objects and cast 20k rays.
+Here we try to use a naive transform.SetPositionAndRotation + some raycasts to get a new position and that's around 32 msec to move 40k objects (22.4 msec) and cast 20k rays (9.6 msec).
 
 And then we try to do the same (40k rotation/movement + 20k raycasts) in 0.120 msec in the main thread (2.5 msec on background jobs).
 
@@ -29,7 +29,7 @@ This way we're not calling `Instantiate`/`Destroy`, but just disabling objects o
 ![Naive profiler's timeline](Docs/Pictures/Naive-Timeline.png)
 ![Naive profiler's hierarchy](Docs/Pictures/Naive-Hierarchy.png)
 
-23 msec to move 20k casters + decals… But is it possible to make it faster?
+32 msec to move 20k casters + 20k decals… Raycasts are 9.6 msec, movement code is 22.4 msec. But is it possible to make it faster?
 
 ### TransformAccessArray - what's that?
 
@@ -55,6 +55,8 @@ The logic will be different in such case:
 [The manager](https://github.com/Jura-Z/TransformAccessArrayDemo/blob/main/TransformAccessArrayDemo/Assets/Scripts/DecalMovement/TransformAccessArrayWrapper/TransformAccessArrayManager.cs) would control a list of 'casters' and 'decals'.
 
 Also, we need to use [jobs](https://unity.com/dots/packages#c-job-system) (multithreading) and [Burst](https://unity.com/dots/packages#burst-compiler) (special compiler for a C# subset).
+
+To do the raycasts we'd use multithreaded [`RaycastCommand.ScheduleBatch`](https://docs.unity3d.com/ScriptReference/RaycastCommand.ScheduleBatch.html)
 
 For every Update of the manager it would spawn a chain of jobs that depend on each other:
 - it would [spawn a job](https://github.com/Jura-Z/TransformAccessArrayDemo/blob/main/TransformAccessArrayDemo/Assets/Scripts/DecalMovement/TransformAccessArrayWrapper/TransformAccessArrayManager.cs#L228) that changes the position of all casters.
