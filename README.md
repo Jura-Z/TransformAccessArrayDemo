@@ -41,7 +41,7 @@ And `TransformAccessArray` is an array of those `TransformAccess` objects that i
 
 > ❗ Yes, that's right - **we can modify GameObject's Transforms via jobs**. And that's insanely fast!
 
-Hierarchy is critical - it controls how jobs can be scheduled.
+Hierarchy is critical - it controls how jobs can be scheduled. Only one thread can modify one `TransformHierarchy`. Read only jobs don't have such limitation, [see Additional note on ReadOnly transform jobs](#additional-note-on-readonly-transform-jobs)
 
 Also take a look at https://www.youtube.com/watch?v=W45-fsnPhJY&t=798 from amazing Ian Dundore (all his talks are great and must-see!).
 
@@ -109,7 +109,9 @@ We would kill all the performance.
 
 ![TAA profiler's timeline. With Burst, worst possible hierarchy](Docs/Pictures/TAA-SingleParent-Burst.png)
 
-There is just one job that does all the work, because there is only one `TransformHierarchy` per all casters and one per all decals.
+There is just one job that does all the read-write work, because there is only one `TransformHierarchy` per all casters and one per all decals.
+
+*Note:* Read only jobs don't have such limitation, [see Additional note on ReadOnly transform jobs](#additional-note-on-readonly-transform-jobs)
 
 #### Better hierarchy: all in the root
 
@@ -172,6 +174,10 @@ Now we almost cannot see the scheduler on the main thread. Total jobs completion
 That's for 20k objects and 20k decals!
 
 ![Overview](Docs/Pictures/Difference.png)
+
+#### Additional note on ReadOnly transform jobs
+
+There is an addition to Unity 2020.2 - [RunReadOnly](https://docs.unity3d.com/ScriptReference/Jobs.IJobParallelForTransformExtensions.RunReadOnly.html) and [ScheduleReadOnly](https://docs.unity3d.com/ScriptReference/Jobs.IJobParallelForTransformExtensions.ScheduleReadOnly.html) that actually ignores `TransformHierarchy` multithreading limitation and can parallelyze jobs differently - more evenly, because of the fact that they're not changing anything, so the order doesn't matter.
 
 # Notes
 
